@@ -1,0 +1,8 @@
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+# PyInstaller build outputs (the exe is a build artifact; rebuild with build.bat)
+build/
+dist/
+dist_linux/
+*.spec.bak

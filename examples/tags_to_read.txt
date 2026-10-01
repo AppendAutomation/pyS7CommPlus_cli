@@ -1,0 +1,5 @@
+# One tag per line; read with:  pyS7commplus_cli 192.168.2.50 ReadTagFile examples/tags_to_read.txt
+SPDL BLU Winder DB.driveKp
+SPDL BLU Winder DB.typeOfWinder
+SPDL BLU Winder DB.openBrake
+SPDL BLU Winder DB.driveFaultCode

@@ -1,0 +1,6 @@
+# Sample pyS7commplus_cli script.  Run with:
+#   pyS7commplus_cli RunScript examples/sample_script.txt
+IPAddress 192.168.2.50
+GetDeviceProperties
+Read SPDL BLU Winder DB.driveKp
+Read SPDL BLU Winder DB.typeOfWinder

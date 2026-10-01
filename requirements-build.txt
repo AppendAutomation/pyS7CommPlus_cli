@@ -1,0 +1,9 @@
+# Build-time requirements for producing the standalone Windows 7 exe with
+# Python 3.8.10 (the last Python with official Windows 7 support).
+#
+# cryptography 3.3.2 is the last pre-Rust release; its wheel loads on Windows 7,
+# whereas cryptography >= ~41 ships a Rust _rust.pyd that fails to load on Win7
+# ("DLL load failed while importing _rust").  3.3.2 still provides every
+# primitive the S7comm-plus V3 backend needs (AES, SHA-256, HMAC).
+cryptography==3.3.2
+pyinstaller>=6.0

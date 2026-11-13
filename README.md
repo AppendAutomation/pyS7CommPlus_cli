@@ -129,6 +129,6 @@ symbolic read/write on an optimized data block.)
 
 ## Licence
 
-The pyS7commplus library is Apache-2.0.  The vendored `s7commplus` backend and
+The pyS7commplus library is MIT.  The vendored `s7commplus` backend and
 its upstream HarpoS7 crypto are MIT — see `THIRD-PARTY-NOTICES.md`, which must
 accompany any distribution of the exe.

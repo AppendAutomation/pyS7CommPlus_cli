@@ -127,7 +127,7 @@ symbolic read/write on an optimized data block.)
   (`CRYPTOGRAPHY_OPENSSL_300_OR_GREATER`) against cryptography 3.3.2; the build
   completes and the exe works because the spec collects the OpenSSL DLLs itself.
 
-## Licence
+## License
 
 The pyS7commplus library is MIT.  The vendored `s7commplus` backend and
 its upstream HarpoS7 crypto are MIT — see `THIRD-PARTY-NOTICES.md`, which must

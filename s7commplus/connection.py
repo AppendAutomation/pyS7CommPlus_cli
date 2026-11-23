@@ -686,19 +686,35 @@ class S7CommPlusConnection:
         self._connect_password = password
         self._session_key_fingerprint_override = _session_key_fingerprint
         try:
+            # Steps 1-4: bring up the transport and create the session.
+            #
             # Step 1: COTP connection (same TSAP for all S7CommPlus versions)
-            self._iso_conn.connect(timeout)
-
             # Step 2: InitSSL handshake (required before CreateObject)
-            self._init_ssl()
-
             # Step 3: TLS activation (between InitSSL and CreateObject)
-            if use_tls:
-                self._activate_tls(tls_cert=tls_cert, tls_key=tls_key, tls_ca=tls_ca)
-
-            # Step 4: CreateObject (S7CommPlus session setup)
-            # CreateObject always uses V1 framing
-            self._create_session()
+            # Step 4: CreateObject (always V1 framing)
+            #
+            # V1-initial S7-1200 firmware (e.g. FW v4.2.x) only returns
+            # ServerSessionVersion when the client introduces itself with the
+            # full TIA-Portal-style attribute set (GH-712), but other CPUs
+            # reject that fuller request outright -- their CreateObject
+            # response carries a non-zero return value, a "Request
+            # CreateObject" error extension and no ServerSessionVersion.  Those
+            # PLCs do accept the minimal ClientRID-only request the reference
+            # driver sends, so retry with it on a fresh transport rather than
+            # failing the connection.
+            for full_identification in (True, False):
+                self._iso_conn.connect(timeout)
+                self._init_ssl()
+                if use_tls:
+                    self._activate_tls(tls_cert=tls_cert, tls_key=tls_key, tls_ca=tls_ca)
+                self._create_session(full_identification=full_identification)
+                if self._server_session_version is not None or not full_identification:
+                    break
+                logger.info(
+                    "CreateObject returned no ServerSessionVersion; retrying with the "
+                    "minimal ClientRID-only session request"
+                )
+                self._disconnect()
 
             if self._public_key_fingerprint is not None and ":" not in self._public_key_fingerprint:
                 from .session_auth.keys import parse_family_identifier, parse_fingerprint
@@ -1491,8 +1507,14 @@ class S7CommPlusConnection:
         logger.debug(f"InitSSL response: version=V{version}, data_length={data_length}")
         logger.debug(f"InitSSL response body ({len(response)} bytes): {response.hex(' ')}")
 
-    def _create_session(self) -> None:
+    def _create_session(self, full_identification: bool = True) -> None:
         """Send CreateObject request to establish an S7CommPlus session.
+
+        Args:
+            full_identification: Introduce the client with the full
+                TIA-Portal-style ServerSession attribute set.  When False,
+                send only the ClientRID, exactly as the reference driver
+                does -- some firmware rejects the fuller request.
 
         Builds a NullServerSession CreateObject request matching the
         structure expected by S7-1200/1500 PLCs:
@@ -1549,20 +1571,28 @@ class S7CommPlusConnection:
                 + data
             )
 
-        client_id = "s7commplus"
-        request += _wstring_attr(233, client_id)  # ObjectVariableTypeName / class name
-        request += _wstring_attr(289, f"1:::6.0::{client_id}")  # network interface info
-        request += _wstring_attr(296, client_id)  # project name
-        request += _wstring_attr(297, "")
-        request += _wstring_attr(298, client_id)  # hostname
-        # 299: UDInt(1)
-        request += bytes([ElementID.ATTRIBUTE]) + encode_uint32_vlq(299)
-        request += bytes([0x00, DataType.UDINT]) + encode_uint32_vlq(1)
-        # 300: ServerSessionClientRID
-        request += bytes([ElementID.ATTRIBUTE])
-        request += encode_uint32_vlq(ObjectId.SERVER_SESSION_CLIENT_RID)
-        request += bytes([0x00, DataType.RID]) + struct.pack(">I", 0x80C3C901)
-        request += _wstring_attr(301, "")
+        # Minimal request: ClientRID only, matching the reference driver's
+        # SetNullServerSessionData().  Firmware that rejects the fuller
+        # identification below still accepts this.
+        if not full_identification:
+            request += bytes([ElementID.ATTRIBUTE])
+            request += encode_uint32_vlq(ObjectId.SERVER_SESSION_CLIENT_RID)
+            request += bytes([0x00, DataType.RID]) + struct.pack(">I", 0x80C3C901)
+        else:
+            client_id = "s7commplus"
+            request += _wstring_attr(233, client_id)  # ObjectVariableTypeName / class name
+            request += _wstring_attr(289, f"1:::6.0::{client_id}")  # network interface info
+            request += _wstring_attr(296, client_id)  # project name
+            request += _wstring_attr(297, "")
+            request += _wstring_attr(298, client_id)  # hostname
+            # 299: UDInt(1)
+            request += bytes([ElementID.ATTRIBUTE]) + encode_uint32_vlq(299)
+            request += bytes([0x00, DataType.UDINT]) + encode_uint32_vlq(1)
+            # 300: ServerSessionClientRID
+            request += bytes([ElementID.ATTRIBUTE])
+            request += encode_uint32_vlq(ObjectId.SERVER_SESSION_CLIENT_RID)
+            request += bytes([0x00, DataType.RID]) + struct.pack(">I", 0x80C3C901)
+            request += _wstring_attr(301, "")
 
         # Nested object: ClassSubscriptions, with required class-name attribute
         request += bytes([ElementID.START_OF_OBJECT])
